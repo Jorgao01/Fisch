@@ -1,0 +1,740 @@
+{
+  "_readme": "Base de assinaturas do detector. Cada 'tool' tem uma lista de 'checks'. Tipos de check suportados: regex (1 padrao), regex_all (varios padroes, todos precisam bater - AND), long_lines (linhas gigantes), short_high_entropy (arquivo curto e denso). 'explicit' = evidencia forte tipo watermark/nome literal, praticamente garante o veredito sozinha. Ajuste 'points' para calibrar confianca; o total nao precisa bater exatamente com max_score do tool.",
+  "tools": [
+    {
+      "name": "Prometheus",
+      "tier": 1,
+      "max_score": 140,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "Prometheus\\s+Obfuscator|levno-?710",
+          "flags": "i",
+          "min_count": 1,
+          "points": 60,
+          "explicit": true,
+          "reason": "Watermark/nome literal do Prometheus ('levno-710' / 'Prometheus Obfuscator')"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\b[Il1]{5,}\\b",
+          "min_count": 8,
+          "points": 20,
+          "reason": "Identificadores compostos só por I/l/1 (gerador de nomes 'Il1'): {count} ocorrências"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\b[Il1]{5,}\\b",
+          "min_count": 3,
+          "points": 8,
+          "reason": "Alguns identificadores no padrão I/l/1: {count} ocorrências"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\b\\w+\\s*:\\s*(?:get|set|Get|Set)\\s*\\(",
+          "min_count": 4,
+          "points": 12,
+          "reason": "Acesso a variáveis via métodos get/set em objetos (ProxifyLocals): {count} ocorrências"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\(\\s*-?\\d+\\s*[\\+\\-\\*]\\s*-?\\d+\\s*\\)\\s*[\\+\\-\\*/]\\s*-?\\d+",
+          "min_count": 5,
+          "points": 15,
+          "reason": "Números substituídos por expressões aritméticas equivalentes (NumbersToExpressions): {count}"
+        },
+        {
+          "type": "regex",
+          "pattern": "(?:\"[^\"\\n]{1,6}\"\\s*\\.\\.\\s*){4,}\"[^\"\\n]{1,6}\"",
+          "min_count": 1,
+          "points": 15,
+          "reason": "Cadeias de concatenação de strings curtas (SplitStrings): {count} trecho(s)"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "string\\.char\\s*\\(",
+            "string\\.byte\\s*\\("
+          ],
+          "min_counts": [
+            5,
+            3
+          ],
+          "points": 10,
+          "reason": "Rotina de decriptação de strings byte-a-byte (EncryptStrings)"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "local\\s+\\w+\\s*=\\s*\\{",
+            "[\"'][A-Za-z0-9+/=]{40,}[\"']"
+          ],
+          "min_counts": [
+            1,
+            1
+          ],
+          "points": 10,
+          "reason": "Array de constantes com blob(s) tipo Base64 (ConstantArray com Encoding=base64/mixed)"
+        },
+        {
+          "type": "regex",
+          "pattern": "debug\\s*\\.\\s*getinfo|string\\.dump",
+          "min_count": 1,
+          "points": 10,
+          "reason": "Checagens de anti-tamper (debug.getinfo / string.dump)"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "while\\s+true\\s+do",
+            "\\bgoto\\s+\\w+\\b"
+          ],
+          "min_counts": [
+            1,
+            3
+          ],
+          "points": 15,
+          "reason": "Loop de dispatch com goto (Vmify / control-flow flattening)"
+        },
+        {
+          "type": "regex",
+          "pattern": "^\\s*return\\s*\\(?\\s*function\\s*\\(",
+          "flags": "m",
+          "min_count": 1,
+          "points": 8,
+          "reason": "Script inteiro embrulhado em uma função anônima (WrapInFunction)"
+        }
+      ],
+      "version_pattern": "Prometheus[\\s-]+v?([\\d.]+)"
+    },
+    {
+      "name": "MoonSec V2/V3",
+      "tier": 1,
+      "max_score": 120,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "\\bmoonsec\\b",
+          "flags": "i",
+          "min_count": 1,
+          "points": 55,
+          "explicit": true,
+          "reason": "Referência literal a 'moonsec' encontrada no código"
+        },
+        {
+          "type": "long_lines",
+          "threshold": 3000,
+          "min_count": 1,
+          "points": 15,
+          "reason": "{count} linha(s) com mais de 3000 caracteres (loader compactado)"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "getfenv\\s*\\(\\s*\\)",
+            "setfenv\\s*\\("
+          ],
+          "min_counts": [
+            1,
+            1
+          ],
+          "points": 10,
+          "reason": "Uso combinado de getfenv/setfenv"
+        },
+        {
+          "type": "regex",
+          "pattern": "GetFullName\\s*\\(\\s*\\)",
+          "min_count": 1,
+          "points": 10,
+          "reason": "Chamada a script:GetFullName() (comum em checagem de licença MoonSec)"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\[\\s*\\d+\\s*\\]\\s*=\\s*function",
+          "min_count": 15,
+          "points": 30,
+          "reason": "Tabela de dispatch com {count} opcodes numerados (VM registrada)"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\[\\s*\\d+\\s*\\]\\s*=\\s*function",
+          "min_count": 6,
+          "points": 15,
+          "reason": "Tabela de dispatch com {count} opcodes numerados"
+        },
+        {
+          "type": "regex",
+          "pattern": "string\\.char\\s*\\(\\s*\\(",
+          "min_count": 3,
+          "points": 10,
+          "reason": "Decodificação de string via string.char aninhado em loop"
+        }
+      ]
+    },
+    {
+      "name": "IronBrew 1/2",
+      "tier": 1,
+      "max_score": 120,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "\\bironbrew\\b",
+          "flags": "i",
+          "min_count": 1,
+          "points": 55,
+          "explicit": true,
+          "reason": "Referência literal a 'IronBrew' encontrada no código"
+        },
+        {
+          "type": "regex",
+          "pattern": "IRONBREW2?_DEBUG",
+          "flags": "i",
+          "min_count": 1,
+          "points": 55,
+          "explicit": true,
+          "reason": "Símbolo de debug do IronBrew2 presente"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "pcall\\s*\\(\\s*function\\s*\\(\\s*\\)",
+            "\\{\\s*(?:\\d{1,3}\\s*,\\s*){50,}"
+          ],
+          "min_counts": [
+            1,
+            1
+          ],
+          "points": 30,
+          "reason": "Bloco pcall + array numérico massivo (bytecode serializado estilo IronBrew)"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "\\bunpack\\s*\\(",
+            "string\\.byte\\s*\\("
+          ],
+          "min_counts": [
+            3,
+            3
+          ],
+          "points": 15,
+          "reason": "unpack() + string.byte() combinados (loader típico IronBrew)"
+        }
+      ]
+    },
+    {
+      "name": "WeAreDevs",
+      "tier": 1,
+      "max_score": 120,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "wearedevs",
+          "flags": "i",
+          "min_count": 1,
+          "points": 55,
+          "explicit": true,
+          "reason": "Referência literal a 'WeAreDevs' encontrada no código"
+        },
+        {
+          "type": "regex",
+          "pattern": "getgenv\\s*\\(\\s*\\)",
+          "min_count": 1,
+          "points": 8,
+          "reason": "Uso de getgenv() (comum em loaders do ecossistema WeAreDevs)"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "\\blocal\\s+[a-zA-Z]{1,2}\\s*=",
+            "getgenv\\s*\\(|loadstring\\s*\\(\\s*game"
+          ],
+          "min_counts": [
+            40,
+            1
+          ],
+          "points": 25,
+          "reason": "Grande quantidade de variáveis com nomes de 1-2 letras combinada com getgenv/loadstring(game...)"
+        },
+        {
+          "type": "regex",
+          "pattern": "loadstring\\s*\\(\\s*game",
+          "min_count": 1,
+          "points": 10,
+          "reason": "Padrão loadstring(game:HttpGet(...)) característico de loaders WRD"
+        }
+      ]
+    },
+    {
+      "name": "IronVeil",
+      "tier": 1,
+      "max_score": 110,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "ironveil",
+          "flags": "i",
+          "min_count": 1,
+          "points": 60,
+          "explicit": true,
+          "reason": "Referência literal a 'IronVeil' encontrada no código"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "hwid",
+            "loadstring"
+          ],
+          "flags": "i",
+          "min_counts": [
+            1,
+            1
+          ],
+          "points": 15,
+          "reason": "Checagem de HWID combinada com loadstring (keysystem embutido)"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\bchunk\\d+\\b",
+          "flags": "i",
+          "min_count": 2,
+          "points": 15,
+          "reason": "Nomenclatura tipo 'chunkN' (fragmentação de payload)"
+        }
+      ]
+    },
+    {
+      "name": "Hercules Obfuscator",
+      "tier": 1,
+      "max_score": 130,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "Obfuscated\\s+by\\s+Hercules|hercules-obfuscator\\.xyz",
+          "flags": "i",
+          "min_count": 1,
+          "points": 60,
+          "explicit": true,
+          "reason": "Watermark literal do Hercules ('Obfuscated by Hercules' / 'hercules-obfuscator.xyz')"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "local\\s+\\w+\\s*,\\s*\\w+\\s*,\\s*\\w+\\s*=\\s*\"[0-9A-Fa-f]{20,}\"\\s*,\\s*\\d+\\s*,\\s*\\{\\}",
+            "tonumber\\s*\\(\\s*\\w+\\s*:\\s*sub\\s*\\(",
+            "assert\\s*\\(\\s*load\\s*\\(\\s*table\\.concat\\s*\\("
+          ],
+          "min_counts": [
+            1,
+            1,
+            1
+          ],
+          "points": 45,
+          "reason": "Wrapper de bytecode em hex + offset (local X,Y,Z = \"hex\",N,{} ... tonumber(_,16) ... assert(load(table.concat(_)))) — padrão do BytecodeEncoder do Hercules"
+        },
+        {
+          "type": "regex",
+          "pattern": "local\\s+\\w+\\s*=\\s*\\d+;\\s*local\\s+\\w+\\s*=\\s*\\d+;\\s*local\\s+\\w+\\s*=\\s*0;\\s*while\\s+\\w+\\s*==\\s*\\w+\\s+and\\s+\\w+\\s*<\\s*1\\s+do",
+          "min_count": 1,
+          "points": 25,
+          "reason": "Loop tautológico 'while A==B and C<1 do' típico do Control Flow Obfuscator do Hercules"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\d+\\s*%\\s*\\d+\\s*==\\s*0|\\d+\\s*-\\s*\\d+\\s*==\\s*0|\\d+\\s*\\*\\s*0\\s*\\+\\s*\\d+\\s*==\\s*\\d+",
+          "min_count": 3,
+          "points": 10,
+          "reason": "Predicados opacos numéricos (tautologias tipo N%N==0, N-N==0): {count} ocorrências"
+        }
+      ],
+      "version_pattern": "Obfuscated\\s+by\\s+Hercules\\s+v?([\\d.]+)"
+    },
+    {
+      "name": "Luraph",
+      "tier": 1,
+      "max_score": 150,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "(?:generated|protected)\\s+using\\s+Luraph|lura\\.ph|\\bluraph\\b",
+          "flags": "i",
+          "min_count": 1,
+          "points": 60,
+          "explicit": true,
+          "reason": "Watermark/nome literal do Luraph ('generated/protected using Luraph Obfuscator' / 'lura.ph')"
+        },
+        {
+          "type": "regex",
+          "pattern": "LPH_(?:JIT|NO_VIRTUALIZE|ENCFUNC|ENCSTR|CRASH|SKIP|JIT_MAX)|--!Optimize\\s+\\d",
+          "min_count": 1,
+          "points": 40,
+          "explicit": true,
+          "reason": "Pragma/diretiva literal do Luraph (LPH_JIT, LPH_NO_VIRTUALIZE, --!Optimize, etc.)"
+        },
+        {
+          "type": "regex",
+          "pattern": "^\\s*return\\s*\\(\\s*\\{",
+          "flags": "m",
+          "min_count": 1,
+          "points": 10,
+          "reason": "Arquivo é um único 'return({...})' de tabela de closures nomeadas (padrão Luraph v14.x recente)"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "^\\s*return\\s*\\(\\s*function\\s*\\(\\s*\\w+\\s*,\\s*\\w+\\s*,",
+            "while\\s+true\\s+do"
+          ],
+          "flags": "m",
+          "min_counts": [
+            1,
+            1
+          ],
+          "points": 15,
+          "reason": "Arquivo é um único 'return(function(...))' com lista gigante de parâmetros + loop 'while true do' de dispatch (padrão Luraph v11-v14.3)"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "0[bB][01_]{4,}",
+            "0[xX][0-9a-fA-F_]{2,}"
+          ],
+          "min_counts": [
+            30,
+            30
+          ],
+          "points": 30,
+          "reason": "Mistura pesada de literais numéricos binários (0B..) e hexadecimais (0x..), inclusive com underscores (0B10_01), no mesmo arquivo (ofuscação numérica típica de várias versões do Luraph)"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\b\\w{1,3}\\s*=\\s*function\\s*\\(",
+          "min_count": 60,
+          "points": 20,
+          "reason": "Grande tabela de closures nomeadas com chaves curtas tipo XY=function(...): {count} ocorrências"
+        },
+        {
+          "type": "long_lines",
+          "threshold": 50000,
+          "min_count": 1,
+          "points": 10,
+          "reason": "Linha única gigante (50000+ caracteres) típica de builds do Luraph"
+        }
+      ],
+      "version_pattern": "(?:generated|protected)\\s+using\\s+Luraph\\s+Obfuscator\\s+v?([\\d.]+)"
+    },
+    {
+      "name": "Goofyscator",
+      "tier": 1,
+      "max_score": 110,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "goofyscator",
+          "flags": "i",
+          "min_count": 1,
+          "points": 60,
+          "explicit": true,
+          "reason": "Watermark literal do Goofyscator ('goofyscator' / 'goofyscator.lua.cz')"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\(\\(\\(\\w+\\[8\\]\\s*or\\s*0x4AFEC\\)\\s*-\\s*0x4AFEC\\)\\s*\\*\\s*0x78F0F\\)\\s*%\\s*0xFFFFD",
+          "flags": "i",
+          "min_count": 5,
+          "points": 30,
+          "reason": "Fórmula aritmética 'mágica' repetida ((X[8] or 0x4AFEC)-0x4AFEC)*0x78F0F)%0xFFFFD: {count} ocorrências (fingerprint estrutural do Goofyscator)"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\[\\s*\"[A-Za-z0-9]+\"\\s*\\]\\s*=\\s*\\(function\\(",
+          "min_count": 15,
+          "points": 20,
+          "reason": "Tabela de handlers de VM com chaves string curtas entre aspas (\"xyz\"=(function(...)): {count} ocorrências"
+        },
+        {
+          "type": "regex",
+          "pattern": ":\\w+\\(getfenv and getfenv\\(\\)\\s*or\\s*_ENV\\s*or\\s*_G\\)",
+          "min_count": 1,
+          "points": 15,
+          "reason": "Chamada final encadeada ':XYZ(getfenv and getfenv() or _ENV or _G)' característica do loader Goofyscator"
+        }
+      ],
+      "version_pattern": "goofyscator\\s+V?(\\d+(?:\\.\\d+)*)"
+    },
+    {
+      "name": "LuaSyntax",
+      "tier": 1,
+      "max_score": 110,
+      "checks": [
+        {"type": "regex", "pattern": "\\bluasyntax\\b", "flags": "i", "min_count": 1, "points": 60, "explicit": true,
+         "reason": "Watermark literal do LuaSyntax ('obfuscated using LuaSyntax')"},
+        {"type": "regex", "pattern": "for\\s+\\w+=1,#\\w+\\s+do\\s+\\w+\\[", "min_count": 1, "points": 20,
+         "reason": "Loop construindo tabela de lookup alfabeto->índice a partir de uma string de charset customizado"},
+        {"type": "regex", "pattern": "\\w+\\[\"[a-zA-Z]{1,4}\"\\s*\\.\\.\\s*\"[a-zA-Z]{1,4}\"\\]\\s*\\(", "min_count": 5, "points": 20,
+         "reason": "Chamadas de método via string[\"parte1\"..\"parte2\"](...) (nomes de função da lib padrão partidos e concatenados): {count} ocorrências"},
+        {"type": "regex", "pattern": "^\\s*return\\s*\\(\\s*function\\s*\\(\\s*\\w+\\s*,\\s*\\w+\\s*,\\s*\\w+\\s*,\\s*\\w+", "flags": "m", "min_count": 1, "points": 10,
+         "reason": "Script inteiro embrulhado em uma função com lista grande de parâmetros"}
+      ]
+    },
+
+    {
+      "name": "WynFuscate",
+      "tier": 1,
+      "max_score": 110,
+      "checks": [
+        {"type": "regex", "pattern": "wynfuscate", "flags": "i", "min_count": 1, "points": 60, "explicit": true,
+         "reason": "Watermark literal do WynFuscate ('obfuscated with WynFuscate')"},
+        {"type": "regex", "pattern": "getpolsec\\.com", "flags": "i", "min_count": 1, "points": 30, "explicit": true,
+         "reason": "Domínio literal 'getpolsec.com' encontrado (site do WynFuscate)"},
+        {"type": "regex", "pattern": "\\w+=\\(\\w+\\*131\\+\\w+\\(\\w+,\\w+\\)\\)%2147483647", "min_count": 3, "points": 30,
+         "reason": "Loop de hash polinomial (base 131, mod 2147483647) usado para resolver globais/upvalues sem nomes literais: {count} ocorrências"},
+        {"type": "regex", "pattern": "\\(\\s*_ENV\\s+or\\s+_G\\s*\\)", "min_count": 3, "points": 15,
+         "reason": "Cadeia '(_ENV or _G)' repetida para acessar o ambiente global de forma agnóstica ao executor"}
+      ]
+    },
+
+    {
+      "name": "LuaObfuscator.com",
+      "tier": 1,
+      "max_score": 110,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "luaobfuscator",
+          "flags": "i",
+          "min_count": 1,
+          "points": 55,
+          "explicit": true,
+          "reason": "Referência literal a 'luaobfuscator' encontrada no código"
+        },
+        {
+          "type": "regex",
+          "pattern": "script_key",
+          "flags": "i",
+          "min_count": 1,
+          "points": 20,
+          "reason": "Variável/parâmetro 'script_key' presente (comum no serviço online)"
+        }
+      ]
+    },
+    {
+      "name": "25ms",
+      "tier": 1,
+      "max_score": 130,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "discord\\.gg/25ms|obfuscated\\s*@\\s*25ms",
+          "flags": "i",
+          "min_count": 1,
+          "points": 60,
+          "explicit": true,
+          "reason": "Watermark literal do 25ms ('obfuscated @ discord.gg/25ms')"
+        },
+        {
+          "type": "regex",
+          "pattern": "`[A-Za-z0-9+/=]{1,12}`",
+          "min_count": 30,
+          "points": 25,
+          "reason": "Grande array de tokens delimitados por crase (`...`) em formato tipo base64: {count} ocorrências"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "ipairs\\s*\\{\\s*\\{\\d+,\\d+\\}",
+            "while\\s*\\(\\w+\\)\\[1\\]\\s*<\\s*\\(\\w+\\)\\[2\\]\\s*do"
+          ],
+          "min_counts": [
+            1,
+            1
+          ],
+          "points": 25,
+          "reason": "Rotina de 'desembaralhamento' do array de strings via troca de índices em pares de intervalo (padrão do loader 25ms)"
+        },
+        {
+          "type": "regex",
+          "pattern": "local\\s+function\\s+\\w+\\s*\\(\\w+\\)\\s*return\\s*\\(\\w+\\)\\[\\w+-\\d+\\]\\s*end",
+          "min_count": 1,
+          "points": 20,
+          "reason": "Função de lookup por deslocamento numérico fixo (return(Y)[e-N]end) característica do 25ms"
+        },
+        {
+          "type": "short_high_entropy",
+          "max_lines": 30,
+          "min_entropy": 4.5,
+          "points": 5,
+          "reason": "Arquivo muito curto e com alta entropia (loader minimalista)"
+        }
+      ]
+    },
+    {
+      "name": "MoonVeil",
+      "tier": 1,
+      "max_score": 120,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "MoonVeil\\s+Obfuscator|moonveil\\.cc|\\bmoonveil\\b",
+          "flags": "i",
+          "min_count": 1,
+          "points": 60,
+          "explicit": true,
+          "reason": "Watermark/nome literal do MoonVeil ('MoonVeil Obfuscator' / 'moonveil.cc')"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\\\\\d{1,3}",
+          "min_count": 60,
+          "points": 25,
+          "reason": "Uso pesado de escapes decimais (\\\\NNN) dentro de literais de string: {count} ocorrências"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\b\\w{1,3}\\s*\\(\\s*(?:'[^'\\n]{0,80}'|\"[^\"\\n]{0,80}\")\\s*,\\s*(?:'[^'\\n]{0,80}'|\"[^\"\\n]{0,80}\")\\s*\\)",
+          "min_count": 10,
+          "points": 20,
+          "reason": "Função de decodificação de 2 argumentos (par de strings/bytes) chamada em massa ({count}x) — resolução de nomes globais do MoonVeil"
+        },
+        {
+          "type": "regex",
+          "pattern": "=\\s*\\(\\s*getfenv\\s*\\(\\s*\\)\\s*\\)",
+          "min_count": 1,
+          "points": 15,
+          "reason": "Captura de getfenv() numa variável global usada depois para indexação (padrão típico do MoonVeil)"
+        }
+      ],
+      "version_pattern": "MoonVeil\\s+Obfuscator\\s+v?([\\d.]+)"
+    },
+    {
+      "name": "69ms",
+      "tier": 1,
+      "max_score": 100,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "\\b69\\s*ms\\b",
+          "flags": "i",
+          "min_count": 1,
+          "points": 70,
+          "explicit": true,
+          "reason": "Referência literal a '69ms' encontrada no código"
+        },
+        {
+          "type": "short_high_entropy",
+          "max_lines": 30,
+          "min_entropy": 4.5,
+          "points": 10,
+          "reason": "Arquivo muito curto e com alta entropia (loader minimalista)"
+        }
+      ]
+    },
+    {
+      "name": "Base64 (codificação genérica)",
+      "tier": 2,
+      "max_score": 100,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "[\"']([A-Za-z0-9+/]{80,}={0,2})[\"']",
+          "min_count": 1,
+          "points": 50,
+          "reason": "{count} literal(is) compatível com Base64 (80+ chars)"
+        },
+        {
+          "type": "regex",
+          "pattern": "base64",
+          "flags": "i",
+          "min_count": 1,
+          "points": 25,
+          "reason": "Referência literal a 'base64' no código"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "decode",
+            "[\"']([A-Za-z0-9+/]{80,}={0,2})[\"']"
+          ],
+          "flags": "i",
+          "min_counts": [
+            1,
+            1
+          ],
+          "points": 15,
+          "reason": "Função de 'decode' presente junto com blob(s) Base64"
+        }
+      ]
+    },
+    {
+      "name": "XOR (cifra genérica)",
+      "tier": 2,
+      "max_score": 100,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "bit32\\s*\\.\\s*bxor|bit\\s*\\.\\s*bxor|\\bxor\\b",
+          "flags": "i",
+          "min_count": 2,
+          "points": 45,
+          "reason": "{count} operações de XOR/bxor detectadas"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "string\\.byte\\s*\\(",
+            "bit32\\s*\\.\\s*bxor|bit\\s*\\.\\s*bxor|\\bxor\\b"
+          ],
+          "flags": "i",
+          "min_counts": [
+            3,
+            1
+          ],
+          "points": 30,
+          "reason": "Loop de string.byte combinado com XOR (decode byte a byte)"
+        },
+        {
+          "type": "regex_all",
+          "patterns": [
+            "%\\s*256\\b",
+            "bit32\\s*\\.\\s*bxor|bit\\s*\\.\\s*bxor|\\bxor\\b"
+          ],
+          "flags": "i",
+          "min_counts": [
+            1,
+            1
+          ],
+          "points": 10,
+          "reason": "Operação '% 256' junto com XOR (cifra por byte)"
+        }
+      ]
+    },
+    {
+      "name": "Hex (codificação genérica)",
+      "tier": 2,
+      "max_score": 100,
+      "checks": [
+        {
+          "type": "regex",
+          "pattern": "\\\\x[0-9a-fA-F]{2}",
+          "min_count": 20,
+          "points": 45,
+          "reason": "{count} escapes hexadecimais '\\\\xNN'"
+        },
+        {
+          "type": "regex",
+          "pattern": "\\b0x[0-9a-fA-F]{2,}\\b",
+          "min_count": 20,
+          "points": 30,
+          "reason": "{count} literais numéricos '0x..'"
+        },
+        {
+          "type": "regex",
+          "pattern": "tonumber\\s*\\(\\s*\\w+\\s*,\\s*16\\s*\\)",
+          "min_count": 1,
+          "points": 20,
+          "reason": "Uso de tonumber(x, 16) para converter hex em número"
+        }
+      ]
+    }
+  ]
+}
